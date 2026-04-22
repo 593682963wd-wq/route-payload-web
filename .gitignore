@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
+venv/
+输入/*.txt
+输出/*.docx
+!输入/.gitkeep
+!输出/.gitkeep
