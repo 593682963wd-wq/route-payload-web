@@ -1,5 +1,8 @@
-"""把分组后的 FlightPlan 数据写成 Word 表格。
-分组规则：(dep_icao, arr_icao, route_suffix, aircraft_type_code) 一组 -> 一张表 + 一个标题。
+"""把 FlightPlan 渲染为 Word 表格。
+
+分组规则（v1.1）：
+- 外层按航线 (起飞 ICAO, 目的 ICAO, 线路后缀) 分组 → 一个大标题
+- 大标题下，按机型顺序 A319-115 → A320-214W → A320-251 依次放置该机型的载量分析表
 """
 from __future__ import annotations
 
@@ -12,12 +15,13 @@ from typing import Iterable
 from docx import Document
 from docx.enum.table import WD_ALIGN_VERTICAL, WD_TABLE_ALIGNMENT
 from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Cm, Pt
 
 from .parser import FlightPlan
 
-# 表头列定义：(显示名, FlightPlan 字段名 或 None=月份)
+# 表头列定义：(显示名, FlightPlan 字段名)
 COLUMNS = [
     ("月份", "month"),
     ("起飞重量\n（公斤）", "tow_kg"),
@@ -33,6 +37,9 @@ COLUMNS = [
     ("限重计算温度\n(℃)", "_zero"),
     ("人数", "pax_count"),
 ]
+
+# 机型在同一航线下的展示顺序
+AIRCRAFT_ORDER = ["A319-115", "A320-214W", "A320-251"]
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 
@@ -53,10 +60,12 @@ def _aircraft_name(code: str, mapping: dict) -> str:
     return mapping.get(code, code or "未知机型")
 
 
-def _set_cell_text(cell, text: str, bold: bool = False, size: int = 10):
+def _set_cell_text(cell, text: str, bold: bool = False, size: int = 9):
     cell.text = ""
     p = cell.paragraphs[0]
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after = Pt(0)
     cell.vertical_alignment = WD_ALIGN_VERTICAL.CENTER
     run = p.add_run(str(text))
     run.font.name = "宋体"
@@ -69,16 +78,22 @@ def _set_cell_borders(cell):
     tc_pr = cell._tc.get_or_add_tcPr()
     tc_borders = tc_pr.find(qn("w:tcBorders"))
     if tc_borders is None:
-        from docx.oxml import OxmlElement
         tc_borders = OxmlElement("w:tcBorders")
         tc_pr.append(tc_borders)
-    from docx.oxml import OxmlElement
     for edge in ("top", "left", "bottom", "right"):
         b = OxmlElement(f"w:{edge}")
         b.set(qn("w:val"), "single")
         b.set(qn("w:sz"), "6")
         b.set(qn("w:color"), "000000")
         tc_borders.append(b)
+
+
+def _set_table_layout_fixed(table):
+    """固定表格布局，列宽不会因为单元格内容自动扩张。"""
+    tbl_pr = table._tbl.tblPr
+    layout = OxmlElement("w:tblLayout")
+    layout.set(qn("w:type"), "fixed")
+    tbl_pr.append(layout)
 
 
 def _value_for(fp: FlightPlan, attr: str):
@@ -89,42 +104,106 @@ def _value_for(fp: FlightPlan, attr: str):
     return getattr(fp, attr)
 
 
+def _aircraft_sort_key(code: str, aircraft_map: dict) -> tuple[int, str]:
+    name = _aircraft_name(code, aircraft_map)
+    if name in AIRCRAFT_ORDER:
+        return (AIRCRAFT_ORDER.index(name), name)
+    return (len(AIRCRAFT_ORDER), name)
+
+
+def _render_table(doc: Document, items: list[FlightPlan], ac_code: str, aircraft_map: dict, page_width_cm: float):
+    """渲染单个机型的载量分析表。"""
+    items = sorted(items, key=lambda x: x.month)
+
+    # 副标题：湖南航空公司A319-115飞机航线及载量分析
+    sub = doc.add_paragraph()
+    sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    sub.paragraph_format.space_before = Pt(2)
+    sub.paragraph_format.space_after = Pt(2)
+    run = sub.add_run(f"湖南航空公司{_aircraft_name(ac_code, aircraft_map)}飞机航线及载量分析")
+    run.bold = True
+    run.font.size = Pt(11)
+    run.font.name = "宋体"
+    run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
+
+    n_cols = len(COLUMNS)
+    table = doc.add_table(rows=2 + len(items), cols=n_cols)
+    table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    _set_table_layout_fixed(table)
+
+    # 列宽：纵向 A4 内宽 ≈ 18cm，13 列均分 ≈ 1.38cm
+    col_w = page_width_cm / n_cols
+    for col in table.columns:
+        for cell in col.cells:
+            cell.width = Cm(col_w)
+
+    # 第 1 行：信息合并
+    info_row = table.rows[0]
+    info_row.cells[0].merge(info_row.cells[-1])
+    sample = items[0]
+    info = (
+        f"机号：{sample.aircraft_reg}; "
+        f"起飞机场：{sample.dep_icao}; "
+        f"目的地机场：{sample.arr_icao}; "
+        f"备降场：{sample.altn_icao}; "
+        f"备降距离：{sample.altn_dist_nm}NM"
+    )
+    _set_cell_text(info_row.cells[0], info, bold=True, size=9)
+
+    # 第 2 行：表头
+    header_row = table.rows[1]
+    for i, (name, _) in enumerate(COLUMNS):
+        _set_cell_text(header_row.cells[i], name, bold=True, size=8)
+
+    # 数据行
+    for r, fp in enumerate(items, start=2):
+        row = table.rows[r]
+        for i, (_, attr) in enumerate(COLUMNS):
+            _set_cell_text(row.cells[i], _value_for(fp, attr), size=9)
+
+    for row in table.rows:
+        for cell in row.cells:
+            _set_cell_borders(cell)
+
+
 def build_doc(
     plans: Iterable[FlightPlan],
     airports: dict | None = None,
     aircraft: dict | None = None,
 ) -> Document:
-    """把多份 FlightPlan 渲染成一个 docx，返回 Document。"""
+    """渲染。外层航线分组（含线路后缀），内层按机型顺序。"""
     if airports is None:
         airports = _load_json("airports.json")
     if aircraft is None:
         aircraft = _load_json("aircraft.json")
 
-    # 分组
-    groups: dict[tuple, list[FlightPlan]] = defaultdict(list)
-    order: list[tuple] = []
+    # 外层：航线
+    route_groups: dict[tuple, dict[str, list[FlightPlan]]] = defaultdict(lambda: defaultdict(list))
+    route_order: list[tuple] = []
     for fp in plans:
-        key = (fp.dep_icao, fp.arr_icao, fp.route_suffix, fp.aircraft_type_code)
-        if key not in groups:
-            order.append(key)
-        groups[key].append(fp)
+        rkey = (fp.dep_icao, fp.arr_icao, fp.route_suffix)
+        if rkey not in route_groups:
+            route_order.append(rkey)
+        route_groups[rkey][fp.aircraft_type_code].append(fp)
 
     doc = Document()
-    # 页面横向、A4
     section = doc.sections[0]
-    section.page_height, section.page_width = section.page_width, section.page_height
-    section.left_margin = section.right_margin = Cm(1.5)
-    section.top_margin = section.bottom_margin = Cm(1.5)
+    # 纵向 A4：21cm × 29.7cm（python-docx 默认就是 portrait）
+    from docx.shared import Cm as _Cm
+    section.page_width = _Cm(21.0)
+    section.page_height = _Cm(29.7)
+    section.left_margin = section.right_margin = _Cm(1.5)
+    section.top_margin = section.bottom_margin = _Cm(1.5)
+    page_inner_w = 21.0 - 1.5 * 2  # 18cm
 
-    # 设置默认中文字体
     style = doc.styles["Normal"]
     style.font.name = "宋体"
     style.element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
     style.font.size = Pt(10.5)
 
-    for idx, key in enumerate(order, 1):
-        dep, arr, suffix, ac_code = key
-        items = sorted(groups[key], key=lambda x: x.month)
+    for idx, rkey in enumerate(route_order, 1):
+        dep, arr, suffix = rkey
+        ac_groups = route_groups[rkey]
 
         # 大标题：1. 无锡-吐鲁番（南线）
         title_text = f"{idx}. {_airport_name(dep, airports)}-{_airport_name(arr, airports)}"
@@ -132,56 +211,22 @@ def build_doc(
             title_text += f"（{suffix}）"
         title_p = doc.add_paragraph()
         title_p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        title_p.paragraph_format.space_before = Pt(6)
+        title_p.paragraph_format.space_after = Pt(2)
         run = title_p.add_run(title_text)
         run.bold = True
-        run.font.size = Pt(14)
+        run.font.size = Pt(13)
         run.font.name = "宋体"
         run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
 
-        # 副标题（表头）：湖南航空公司A319-115飞机航线及载量分析
-        sub = doc.add_paragraph()
-        sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run = sub.add_run(f"湖南航空公司{_aircraft_name(ac_code, aircraft)}飞机航线及载量分析")
-        run.bold = True
-        run.font.size = Pt(12)
-        run.font.name = "宋体"
-        run._element.rPr.rFonts.set(qn("w:eastAsia"), "宋体")
+        # 机型按预设顺序
+        ac_codes = sorted(ac_groups.keys(), key=lambda c: _aircraft_sort_key(c, aircraft))
+        for ac_code in ac_codes:
+            _render_table(doc, ac_groups[ac_code], ac_code, aircraft, page_inner_w)
 
-        # 表格
-        n_cols = len(COLUMNS)
-        table = doc.add_table(rows=2 + len(items), cols=n_cols)
-        table.alignment = WD_TABLE_ALIGNMENT.CENTER
-
-        # 第一行：信息行（合并）
-        info_row = table.rows[0]
-        info_row.cells[0].merge(info_row.cells[-1])
-        sample = items[0]
-        info = (
-            f"机号：{sample.aircraft_reg}; "
-            f"起飞机场：{sample.dep_icao}; "
-            f"目的地机场：{sample.arr_icao}; "
-            f"备降场：{sample.altn_icao}; "
-            f"备降距离：{sample.altn_dist_nm}NM"
-        )
-        _set_cell_text(info_row.cells[0], info, bold=True, size=10)
-
-        # 第二行：表头
-        header_row = table.rows[1]
-        for i, (name, _) in enumerate(COLUMNS):
-            _set_cell_text(header_row.cells[i], name, bold=True, size=9)
-
-        # 数据行
-        for r, fp in enumerate(items, start=2):
-            row = table.rows[r]
-            for i, (_, attr) in enumerate(COLUMNS):
-                _set_cell_text(row.cells[i], _value_for(fp, attr), size=10)
-
-        # 边框
-        for row in table.rows:
-            for cell in row.cells:
-                _set_cell_borders(cell)
-
-        doc.add_paragraph()  # 段间距
+        # 段间距
+        spacer = doc.add_paragraph()
+        spacer.paragraph_format.space_after = Pt(6)
 
     return doc
 
