@@ -188,21 +188,21 @@ def _add_rect(slide, left, top, width, height, fill_color, line=False):
 
 def _add_footer(slide, page_no, total):
     # 底部细红线
-    _add_rect(slide, Inches(0.5), Inches(7.15), Inches(12.33), Inches(0.025), HNA_RED)
-    _add_textbox(slide, Inches(0.5), Inches(7.2), Inches(4), Inches(0.3),
-                 FOOTER_SLOGAN, size=10, color=TEXT_MUTED)
-    _add_textbox(slide, Inches(11.8), Inches(7.2), Inches(1.2), Inches(0.3),
-                 f"{page_no} / {total}", size=9, color=TEXT_LIGHT, align=PP_ALIGN.RIGHT)
+    _add_rect(slide, Inches(0.5), Inches(7.05), Inches(12.33), Inches(0.03), HNA_RED)
+    _add_textbox(slide, Inches(0.5), Inches(7.12), Inches(6), Inches(0.35),
+                 FOOTER_SLOGAN, size=13, bold=True, color=TEXT_MUTED)
+    _add_textbox(slide, Inches(11.5), Inches(7.12), Inches(1.5), Inches(0.35),
+                 f"{page_no} / {total}", size=12, color=TEXT_LIGHT, align=PP_ALIGN.RIGHT)
 
 
 def _add_section_header(slide, num, title):
     """每页顶部统一的章节标题条。"""
-    # 红色竖条
-    _add_rect(slide, Inches(0.5), Inches(0.5), Inches(0.08), Inches(0.5), HNA_RED)
-    _add_textbox(slide, Inches(0.7), Inches(0.45), Inches(12), Inches(0.6),
-                 f"{num}  {title}", size=22, bold=True, color=HNA_RED_LIGHT)
+    # 红色竖条（加粗加高）
+    _add_rect(slide, Inches(0.5), Inches(0.45), Inches(0.14), Inches(0.7), HNA_RED)
+    _add_textbox(slide, Inches(0.78), Inches(0.4), Inches(12), Inches(0.85),
+                 f"{num}  {title}", size=32, bold=True, color=HNA_RED_LIGHT)
     # 分隔线
-    _add_rect(slide, Inches(0.5), Inches(1.1), Inches(12.33), Inches(0.015), HNA_GRAY)
+    _add_rect(slide, Inches(0.5), Inches(1.25), Inches(12.33), Inches(0.02), HNA_GRAY)
 
 
 def _new_slide(prs):
@@ -218,50 +218,53 @@ def _slide_cover(prs, total):
     _add_rect(s, Inches(8.66), Inches(0), Inches(4.67), Inches(7.5), HNA_RED)
     # 右上角小灰块装饰
     _add_rect(s, Inches(11.0), Inches(0), Inches(2.36), Inches(3.15), HNA_GRAY)
-    # 主标题
-    _add_textbox(s, Inches(0.8), Inches(1.6), Inches(7.2), Inches(1.5),
-                 "航线载量分析系统", size=44, bold=True, color=HNA_RED_LIGHT)
+    # 顶部红色短线
+    _add_rect(s, Inches(0.8), Inches(1.0), Inches(1.4), Inches(0.08), HNA_RED)
+    # 主标题（超大）
+    _add_textbox(s, Inches(0.8), Inches(1.3), Inches(7.5), Inches(2.4),
+                 "航线载量分析系统", size=66, bold=True, color=HNA_RED_LIGHT)
     # 英文副标题
-    _add_textbox(s, Inches(0.8), Inches(3.2), Inches(7.2), Inches(0.6),
-                 "Route Payload Analysis System", size=16, color=TEXT_DARK)
+    _add_textbox(s, Inches(0.8), Inches(3.55), Inches(7.5), Inches(0.6),
+                 "Route Payload Analysis System", size=22, color=TEXT_DARK)
     # 描述
-    _add_textbox(s, Inches(0.8), Inches(4.2), Inches(7.2), Inches(1.0),
+    _add_textbox(s, Inches(0.8), Inches(4.4), Inches(7.5), Inches(1.5),
                  "OFP 飞行计划批量解析 · 自动汇总航线载量\n湖南航空 · 运行指挥部 · 签派室",
-                 size=15, bold=True, color=TEXT_DARK)
+                 size=22, bold=True, color=TEXT_DARK)
     # 设计开发
-    _add_textbox(s, Inches(0.8), Inches(5.6), Inches(4), Inches(0.4),
-                 "系统开发：王迪", size=18, bold=True, color=TEXT_DARK)
-    _add_textbox(s, Inches(0.8), Inches(6.05), Inches(4), Inches(0.4),
-                 "技术支持：杨清云", size=14, color=TEXT_DARK)
-    _add_textbox(s, Inches(0.8), Inches(6.5), Inches(4), Inches(0.4),
-                 "2026 年 4 月", size=12, color=TEXT_MUTED)
+    _add_textbox(s, Inches(0.8), Inches(5.95), Inches(5), Inches(0.55),
+                 "系统开发：王迪", size=26, bold=True, color=TEXT_DARK)
+    _add_textbox(s, Inches(0.8), Inches(6.5), Inches(5), Inches(0.5),
+                 "技术支持：杨清云", size=20, color=TEXT_DARK)
+    # 日期放右下白字
+    _add_textbox(s, Inches(9), Inches(6.6), Inches(3.5), Inches(0.5),
+                 "2026 年 4 月", size=18, bold=True, color=WHITE, align=PP_ALIGN.RIGHT)
     # 页码
     _add_textbox(s, Inches(12.2), Inches(7.15), Inches(1), Inches(0.3),
-                 f"1 / {total}", size=9, color=WHITE, align=PP_ALIGN.RIGHT)
+                 f"1 / {total}", size=11, color=WHITE, align=PP_ALIGN.RIGHT)
 
 
 def _slide_toc(prs, total, items):
     s = _new_slide(prs)
-    _add_textbox(s, Inches(0.5), Inches(0.6), Inches(12), Inches(1),
-                 "目录", size=44, bold=True, color=HNA_RED_LIGHT)
-    _add_textbox(s, Inches(0.5), Inches(1.55), Inches(12), Inches(0.4),
-                 "CONTENTS", size=14, color=TEXT_MUTED)
-    _add_rect(s, Inches(0.5), Inches(2.1), Inches(2), Inches(0.04), HNA_RED)
-    # 三列
-    cols = 3
+    _add_textbox(s, Inches(0.5), Inches(0.5), Inches(12), Inches(1.2),
+                 "目录", size=60, bold=True, color=HNA_RED_LIGHT)
+    _add_textbox(s, Inches(0.5), Inches(1.65), Inches(12), Inches(0.5),
+                 "CONTENTS", size=20, color=TEXT_MUTED)
+    _add_rect(s, Inches(0.5), Inches(2.25), Inches(2.6), Inches(0.06), HNA_RED)
+    # 两列布局，整张卡片更大更显眼
+    cols = 2
     rows = (len(items) + cols - 1) // cols
-    cell_w = 4.0
-    cell_h = 0.85
+    cell_w = 6.0
+    cell_h = 4.5 / rows  # 撑满 2.6~7.0
     for i, item in enumerate(items):
         c, r = i % cols, i // cols
         x = 0.7 + c * cell_w
         y = 2.6 + r * cell_h
-        # 编号
-        _add_textbox(s, Inches(x), Inches(y), Inches(0.7), Inches(0.6),
-                     f"{i+1:02d}", size=24, bold=True, color=HNA_RED)
-        # 标题
-        _add_textbox(s, Inches(x + 0.7), Inches(y + 0.05), Inches(cell_w - 0.7), Inches(0.6),
-                     item, size=16, bold=True, color=TEXT_DARK)
+        # 编号（放大）
+        _add_textbox(s, Inches(x), Inches(y), Inches(1.4), Inches(cell_h - 0.2),
+                     f"{i+1:02d}", size=44, bold=True, color=HNA_RED)
+        # 标题（放大）
+        _add_textbox(s, Inches(x + 1.5), Inches(y + 0.15), Inches(cell_w - 1.6), Inches(cell_h - 0.4),
+                     item, size=24, bold=True, color=TEXT_DARK)
     _add_footer(s, 2, total)
 
 
@@ -276,27 +279,40 @@ def _slide_section_bullets(prs, total, page_no, num, title, blocks):
         cols = 2; rows = 2
     else:
         cols = 3; rows = (n + 2) // 3
+    # 卡片区：1.4 → 6.95 = 5.55in 高
+    area_top = 1.45
+    area_h = 5.5
     cell_w = 12.33 / cols
-    cell_h = (6.0) / rows
+    cell_h = area_h / rows
+    # 字号按行数自适应：行越多越紧凑
+    if rows == 1:
+        sz_emoji, sz_sub, sz_bul, line_h = 56, 30, 22, 0.55
+    elif rows == 2:
+        sz_emoji, sz_sub, sz_bul, line_h = 40, 22, 17, 0.42
+    else:
+        sz_emoji, sz_sub, sz_bul, line_h = 32, 18, 14, 0.34
     for idx, (emoji, sub, bullets) in enumerate(blocks):
         c = idx % cols; r = idx // cols
         x = 0.5 + c * cell_w
-        y = 1.4 + r * cell_h
-        # 卡片背景
-        _add_rect(s, Inches(x + 0.1), Inches(y), Inches(cell_w - 0.2), Inches(cell_h - 0.2),
+        y = area_top + r * cell_h
+        # 卡片背景（占满，仅留 0.1 间隙）
+        _add_rect(s, Inches(x + 0.08), Inches(y + 0.05), Inches(cell_w - 0.16), Inches(cell_h - 0.1),
                   PRGBColor(0xF5, 0xF5, 0xF5))
-        # emoji
-        _add_textbox(s, Inches(x + 0.3), Inches(y + 0.15), Inches(1), Inches(0.6),
-                     emoji, size=26, bold=True, color=HNA_RED)
-        # 副标题
-        _add_textbox(s, Inches(x + 0.3), Inches(y + 0.85), Inches(cell_w - 0.6), Inches(0.4),
-                     sub, size=15, bold=True, color=HNA_RED_LIGHT)
+        # emoji（左上大）
+        _add_textbox(s, Inches(x + 0.3), Inches(y + 0.18), Inches(1.4), Inches(sz_emoji * 0.025),
+                     emoji, size=sz_emoji, bold=True, color=HNA_RED)
+        # 副标题（右侧，与 emoji 同行）
+        _add_textbox(s, Inches(x + 1.5), Inches(y + 0.3), Inches(cell_w - 1.7), Inches(0.7),
+                     sub, size=sz_sub, bold=True, color=HNA_RED_LIGHT)
         # 红色短线
-        _add_rect(s, Inches(x + 0.3), Inches(y + 1.3), Inches(0.6), Inches(0.03), HNA_RED)
-        # bullets
-        body = "\n".join(f"·  {b}" for b in bullets)
-        _add_textbox(s, Inches(x + 0.3), Inches(y + 1.4), Inches(cell_w - 0.6), Inches(cell_h - 1.6),
-                     body, size=12, color=TEXT_DARK)
+        line_y = y + 0.18 + sz_emoji * 0.025 + 0.15
+        _add_rect(s, Inches(x + 0.3), Inches(line_y), Inches(0.8), Inches(0.04), HNA_RED)
+        # bullets — 每条占 line_h 高度
+        bullet_top = line_y + 0.18
+        for bi, b in enumerate(bullets):
+            _add_textbox(s, Inches(x + 0.3), Inches(bullet_top + bi * line_h),
+                         Inches(cell_w - 0.6), Inches(line_h),
+                         f"·  {b}", size=sz_bul, color=TEXT_DARK)
     _add_footer(s, page_no, total)
 
 
@@ -306,10 +322,15 @@ def _slide_steps(prs, total, page_no, num, title, steps):
     _add_section_header(s, num, title)
     n = len(steps)
     cell_w = 12.33 / n
+    circle_d = 1.6  # 加大圆
     for i, (no, name, desc) in enumerate(steps):
         x = 0.5 + i * cell_w
         # 圆形编号
-        circle = s.shapes.add_shape(MSO_SHAPE.OVAL, Inches(x + cell_w/2 - 0.5), Inches(1.6), Inches(1.0), Inches(1.0))
+        circle = s.shapes.add_shape(
+            MSO_SHAPE.OVAL,
+            Inches(x + cell_w/2 - circle_d/2), Inches(1.8),
+            Inches(circle_d), Inches(circle_d),
+        )
         circle.fill.solid()
         circle.fill.fore_color.rgb = HNA_RED
         circle.line.fill.background()
@@ -318,17 +339,17 @@ def _slide_steps(prs, total, page_no, num, title, steps):
         p = tf.paragraphs[0]
         p.alignment = PP_ALIGN.CENTER
         r = p.add_run(); r.text = str(no)
-        r.font.name = "微软雅黑"; r.font.size = PPt(28); r.font.bold = True; r.font.color.rgb = WHITE
+        r.font.name = "微软雅黑"; r.font.size = PPt(48); r.font.bold = True; r.font.color.rgb = WHITE
         # 名称
-        _add_textbox(s, Inches(x), Inches(2.85), Inches(cell_w), Inches(0.5),
-                     name, size=18, bold=True, color=TEXT_DARK, align=PP_ALIGN.CENTER)
+        _add_textbox(s, Inches(x), Inches(3.65), Inches(cell_w), Inches(0.7),
+                     name, size=26, bold=True, color=TEXT_DARK, align=PP_ALIGN.CENTER)
         # 描述
-        _add_textbox(s, Inches(x + 0.2), Inches(3.45), Inches(cell_w - 0.4), Inches(2.5),
-                     desc, size=12, color=TEXT_DARK, align=PP_ALIGN.CENTER)
+        _add_textbox(s, Inches(x + 0.2), Inches(4.5), Inches(cell_w - 0.4), Inches(2.4),
+                     desc, size=18, color=TEXT_DARK, align=PP_ALIGN.CENTER)
         # 箭头
         if i < n - 1:
-            _add_textbox(s, Inches(x + cell_w - 0.3), Inches(1.85), Inches(0.6), Inches(0.6),
-                         "→", size=28, bold=True, color=HNA_GRAY, align=PP_ALIGN.CENTER)
+            _add_textbox(s, Inches(x + cell_w - 0.4), Inches(2.2), Inches(0.8), Inches(0.8),
+                         "→", size=44, bold=True, color=HNA_GRAY, align=PP_ALIGN.CENTER)
     _add_footer(s, page_no, total)
 
 
@@ -337,8 +358,8 @@ def _slide_table(prs, total, page_no, num, title, header, rows):
     _add_section_header(s, num, title)
     n_cols = len(header)
     n_rows = len(rows) + 1
-    left = Inches(0.5); top = Inches(1.4)
-    width = Inches(12.33); height = Inches(5.6)
+    left = Inches(0.5); top = Inches(1.45)
+    width = Inches(12.33); height = Inches(5.55)
     tbl = s.shapes.add_table(n_rows, n_cols, left, top, width, height).table
     # 表头
     for i, h in enumerate(header):
@@ -348,7 +369,7 @@ def _slide_table(prs, total, page_no, num, title, header, rows):
         p = cell.text_frame.paragraphs[0]
         p.alignment = PP_ALIGN.CENTER
         run = p.add_run(); run.text = h
-        run.font.name = "微软雅黑"; run.font.size = PPt(12); run.font.bold = True
+        run.font.name = "微软雅黑"; run.font.size = PPt(18); run.font.bold = True
         run.font.color.rgb = WHITE
     # 数据
     for r_idx, row in enumerate(rows, 1):
@@ -360,21 +381,21 @@ def _slide_table(prs, total, page_no, num, title, header, rows):
             p = cell.text_frame.paragraphs[0]
             p.alignment = PP_ALIGN.CENTER if i == 0 else PP_ALIGN.LEFT
             run = p.add_run(); run.text = str(val)
-            run.font.name = "微软雅黑"; run.font.size = PPt(10); run.font.color.rgb = TEXT_DARK
+            run.font.name = "微软雅黑"; run.font.size = PPt(14); run.font.color.rgb = TEXT_DARK
     _add_footer(s, page_no, total)
 
 
 def _slide_end(prs, total, page_no):
     s = _new_slide(prs)
     _add_rect(s, Inches(0), Inches(0), Inches(13.333), Inches(7.5), HNA_RED)
-    _add_textbox(s, Inches(0.5), Inches(2.8), Inches(12.33), Inches(1.5),
-                 "THANKS", size=72, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
-    _add_textbox(s, Inches(0.5), Inches(4.2), Inches(12.33), Inches(0.6),
-                 "感谢观看 · 敬请指正", size=20, color=WHITE, align=PP_ALIGN.CENTER)
-    _add_textbox(s, Inches(0.5), Inches(5.5), Inches(12.33), Inches(0.4),
-                 "系统开发：王迪    技术支持：杨清云", size=14, color=WHITE, align=PP_ALIGN.CENTER)
+    _add_textbox(s, Inches(0.5), Inches(2.0), Inches(12.33), Inches(2.0),
+                 "THANKS", size=140, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+    _add_textbox(s, Inches(0.5), Inches(4.5), Inches(12.33), Inches(0.8),
+                 "感谢观看 · 敬请指正", size=36, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+    _add_textbox(s, Inches(0.5), Inches(6.0), Inches(12.33), Inches(0.7),
+                 "系统开发：王迪    技术支持：杨清云", size=24, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
     _add_textbox(s, Inches(12.2), Inches(7.15), Inches(1), Inches(0.3),
-                 f"{page_no} / {total}", size=9, color=WHITE, align=PP_ALIGN.RIGHT)
+                 f"{page_no} / {total}", size=11, color=WHITE, align=PP_ALIGN.RIGHT)
 
 
 def build_ppt_bytes() -> bytes:
