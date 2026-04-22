@@ -136,90 +136,359 @@ def build_manual_bytes() -> bytes:
 
 
 # ─────────────────────────────────────────
-# PPTX 介绍幻灯片
+# PPTX 介绍幻灯片 — 湖南航空风格（红色主题，16:9）
 # ─────────────────────────────────────────
 
-def _add_title_slide(prs: Presentation, title: str, subtitle: str):
-    slide = prs.slides.add_slide(prs.slide_layouts[0])
-    slide.shapes.title.text = title
-    slide.placeholders[1].text = subtitle
+from pptx.enum.shapes import MSO_SHAPE
+from pptx.enum.text import PP_ALIGN
+
+# 湖南航空品牌色
+HNA_RED = PRGBColor(0xC0, 0x00, 0x00)        # 主红
+HNA_RED_LIGHT = PRGBColor(0xD7, 0x00, 0x3A)  # 标题红
+HNA_GRAY = PRGBColor(0x92, 0x9A, 0x9F)       # 装饰灰
+TEXT_DARK = PRGBColor(0x51, 0x54, 0x57)      # 正文深灰
+TEXT_MUTED = PRGBColor(0x80, 0x80, 0x80)
+TEXT_LIGHT = PRGBColor(0x96, 0x96, 0x96)
+WHITE = PRGBColor(0xFF, 0xFF, 0xFF)
+
+SLIDE_W = Inches(13.333)
+SLIDE_H = Inches(7.5)
+FOOTER_SLOGAN = "团结  奋斗  高效  务实"
 
 
-def _add_bullets_slide(prs: Presentation, title: str, bullets: list[str]):
-    slide = prs.slides.add_slide(prs.slide_layouts[1])
-    slide.shapes.title.text = title
-    body = slide.placeholders[1].text_frame
-    body.text = bullets[0]
-    for b in bullets[1:]:
-        p = body.add_paragraph()
-        p.text = b
-        p.level = 0
+def _add_textbox(slide, left, top, width, height, text, *,
+                 size=14, bold=False, color=TEXT_DARK, align=PP_ALIGN.LEFT,
+                 font_name="微软雅黑"):
+    tb = slide.shapes.add_textbox(left, top, width, height)
+    tf = tb.text_frame
+    tf.word_wrap = True
+    tf.margin_left = tf.margin_right = Inches(0)
+    tf.margin_top = tf.margin_bottom = Inches(0)
+    lines = str(text).split("\n")
+    for i, line in enumerate(lines):
+        p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
+        p.alignment = align
+        run = p.add_run()
+        run.text = line
+        run.font.name = font_name
+        run.font.size = PPt(size)
+        run.font.bold = bold
+        run.font.color.rgb = color
+    return tb
 
 
-def _add_table_slide(prs: Presentation, title: str, header: list[str], rows: list[list[str]]):
-    slide = prs.slides.add_slide(prs.slide_layouts[5])
-    slide.shapes.title.text = title
+def _add_rect(slide, left, top, width, height, fill_color, line=False):
+    shp = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, left, top, width, height)
+    shp.fill.solid()
+    shp.fill.fore_color.rgb = fill_color
+    if not line:
+        shp.line.fill.background()
+    return shp
+
+
+def _add_footer(slide, page_no, total):
+    # 底部细红线
+    _add_rect(slide, Inches(0.5), Inches(7.15), Inches(12.33), Inches(0.025), HNA_RED)
+    _add_textbox(slide, Inches(0.5), Inches(7.2), Inches(4), Inches(0.3),
+                 FOOTER_SLOGAN, size=10, color=TEXT_MUTED)
+    _add_textbox(slide, Inches(11.8), Inches(7.2), Inches(1.2), Inches(0.3),
+                 f"{page_no} / {total}", size=9, color=TEXT_LIGHT, align=PP_ALIGN.RIGHT)
+
+
+def _add_section_header(slide, num, title):
+    """每页顶部统一的章节标题条。"""
+    # 红色竖条
+    _add_rect(slide, Inches(0.5), Inches(0.5), Inches(0.08), Inches(0.5), HNA_RED)
+    _add_textbox(slide, Inches(0.7), Inches(0.45), Inches(12), Inches(0.6),
+                 f"{num}  {title}", size=22, bold=True, color=HNA_RED_LIGHT)
+    # 分隔线
+    _add_rect(slide, Inches(0.5), Inches(1.1), Inches(12.33), Inches(0.015), HNA_GRAY)
+
+
+def _new_slide(prs):
+    blank = prs.slide_layouts[6]  # Blank
+    return prs.slides.add_slide(blank)
+
+
+# ─────────── 幻灯片构造器 ────────────
+
+def _slide_cover(prs, total):
+    s = _new_slide(prs)
+    # 右侧大红块
+    _add_rect(s, Inches(8.66), Inches(0), Inches(4.67), Inches(7.5), HNA_RED)
+    # 右上角小灰块装饰
+    _add_rect(s, Inches(11.0), Inches(0), Inches(2.36), Inches(3.15), HNA_GRAY)
+    # 主标题
+    _add_textbox(s, Inches(0.8), Inches(1.6), Inches(7.2), Inches(1.5),
+                 "航线载量分析系统", size=44, bold=True, color=HNA_RED_LIGHT)
+    # 英文副标题
+    _add_textbox(s, Inches(0.8), Inches(3.2), Inches(7.2), Inches(0.6),
+                 "Route Payload Analysis System", size=16, color=TEXT_DARK)
+    # 描述
+    _add_textbox(s, Inches(0.8), Inches(4.2), Inches(7.2), Inches(1.0),
+                 "OFP 飞行计划批量解析 · 自动汇总航线载量\n湖南航空 · 运行指挥部 · 签派室",
+                 size=15, bold=True, color=TEXT_DARK)
+    # 设计开发
+    _add_textbox(s, Inches(0.8), Inches(5.6), Inches(4), Inches(0.4),
+                 "系统开发：王迪", size=18, bold=True, color=TEXT_DARK)
+    _add_textbox(s, Inches(0.8), Inches(6.05), Inches(4), Inches(0.4),
+                 "技术支持：杨清云", size=14, color=TEXT_DARK)
+    _add_textbox(s, Inches(0.8), Inches(6.5), Inches(4), Inches(0.4),
+                 "2026 年 4 月", size=12, color=TEXT_MUTED)
+    # 页码
+    _add_textbox(s, Inches(12.2), Inches(7.15), Inches(1), Inches(0.3),
+                 f"1 / {total}", size=9, color=WHITE, align=PP_ALIGN.RIGHT)
+
+
+def _slide_toc(prs, total, items):
+    s = _new_slide(prs)
+    _add_textbox(s, Inches(0.5), Inches(0.6), Inches(12), Inches(1),
+                 "目录", size=44, bold=True, color=HNA_RED_LIGHT)
+    _add_textbox(s, Inches(0.5), Inches(1.55), Inches(12), Inches(0.4),
+                 "CONTENTS", size=14, color=TEXT_MUTED)
+    _add_rect(s, Inches(0.5), Inches(2.1), Inches(2), Inches(0.04), HNA_RED)
+    # 三列
+    cols = 3
+    rows = (len(items) + cols - 1) // cols
+    cell_w = 4.0
+    cell_h = 0.85
+    for i, item in enumerate(items):
+        c, r = i % cols, i // cols
+        x = 0.7 + c * cell_w
+        y = 2.6 + r * cell_h
+        # 编号
+        _add_textbox(s, Inches(x), Inches(y), Inches(0.7), Inches(0.6),
+                     f"{i+1:02d}", size=24, bold=True, color=HNA_RED)
+        # 标题
+        _add_textbox(s, Inches(x + 0.7), Inches(y + 0.05), Inches(cell_w - 0.7), Inches(0.6),
+                     item, size=16, bold=True, color=TEXT_DARK)
+    _add_footer(s, 2, total)
+
+
+def _slide_section_bullets(prs, total, page_no, num, title, blocks):
+    """blocks: list[(emoji, subtitle, [bullets])]"""
+    s = _new_slide(prs)
+    _add_section_header(s, num, title)
+    n = len(blocks)
+    if n <= 2:
+        cols = n; rows = 1
+    elif n <= 4:
+        cols = 2; rows = 2
+    else:
+        cols = 3; rows = (n + 2) // 3
+    cell_w = 12.33 / cols
+    cell_h = (6.0) / rows
+    for idx, (emoji, sub, bullets) in enumerate(blocks):
+        c = idx % cols; r = idx // cols
+        x = 0.5 + c * cell_w
+        y = 1.4 + r * cell_h
+        # 卡片背景
+        _add_rect(s, Inches(x + 0.1), Inches(y), Inches(cell_w - 0.2), Inches(cell_h - 0.2),
+                  PRGBColor(0xF5, 0xF5, 0xF5))
+        # emoji
+        _add_textbox(s, Inches(x + 0.3), Inches(y + 0.15), Inches(1), Inches(0.6),
+                     emoji, size=26, bold=True, color=HNA_RED)
+        # 副标题
+        _add_textbox(s, Inches(x + 0.3), Inches(y + 0.85), Inches(cell_w - 0.6), Inches(0.4),
+                     sub, size=15, bold=True, color=HNA_RED_LIGHT)
+        # 红色短线
+        _add_rect(s, Inches(x + 0.3), Inches(y + 1.3), Inches(0.6), Inches(0.03), HNA_RED)
+        # bullets
+        body = "\n".join(f"·  {b}" for b in bullets)
+        _add_textbox(s, Inches(x + 0.3), Inches(y + 1.4), Inches(cell_w - 0.6), Inches(cell_h - 1.6),
+                     body, size=12, color=TEXT_DARK)
+    _add_footer(s, page_no, total)
+
+
+def _slide_steps(prs, total, page_no, num, title, steps):
+    """steps: list[(no, name, desc)] — 横排流程图"""
+    s = _new_slide(prs)
+    _add_section_header(s, num, title)
+    n = len(steps)
+    cell_w = 12.33 / n
+    for i, (no, name, desc) in enumerate(steps):
+        x = 0.5 + i * cell_w
+        # 圆形编号
+        circle = s.shapes.add_shape(MSO_SHAPE.OVAL, Inches(x + cell_w/2 - 0.5), Inches(1.6), Inches(1.0), Inches(1.0))
+        circle.fill.solid()
+        circle.fill.fore_color.rgb = HNA_RED
+        circle.line.fill.background()
+        tf = circle.text_frame
+        tf.margin_left = tf.margin_right = Inches(0)
+        p = tf.paragraphs[0]
+        p.alignment = PP_ALIGN.CENTER
+        r = p.add_run(); r.text = str(no)
+        r.font.name = "微软雅黑"; r.font.size = PPt(28); r.font.bold = True; r.font.color.rgb = WHITE
+        # 名称
+        _add_textbox(s, Inches(x), Inches(2.85), Inches(cell_w), Inches(0.5),
+                     name, size=18, bold=True, color=TEXT_DARK, align=PP_ALIGN.CENTER)
+        # 描述
+        _add_textbox(s, Inches(x + 0.2), Inches(3.45), Inches(cell_w - 0.4), Inches(2.5),
+                     desc, size=12, color=TEXT_DARK, align=PP_ALIGN.CENTER)
+        # 箭头
+        if i < n - 1:
+            _add_textbox(s, Inches(x + cell_w - 0.3), Inches(1.85), Inches(0.6), Inches(0.6),
+                         "→", size=28, bold=True, color=HNA_GRAY, align=PP_ALIGN.CENTER)
+    _add_footer(s, page_no, total)
+
+
+def _slide_table(prs, total, page_no, num, title, header, rows):
+    s = _new_slide(prs)
+    _add_section_header(s, num, title)
     n_cols = len(header)
     n_rows = len(rows) + 1
-    left = Inches(0.4); top = Inches(1.3)
-    width = Inches(9.2); height = Inches(5.6)
-    tbl = slide.shapes.add_table(n_rows, n_cols, left, top, width, height).table
+    left = Inches(0.5); top = Inches(1.4)
+    width = Inches(12.33); height = Inches(5.6)
+    tbl = s.shapes.add_table(n_rows, n_cols, left, top, width, height).table
+    # 表头
     for i, h in enumerate(header):
-        c = tbl.cell(0, i)
-        c.text = h
-        for p in c.text_frame.paragraphs:
-            for r in p.runs:
-                r.font.bold = True
-                r.font.size = PPt(12)
-    for r, row in enumerate(rows, 1):
+        cell = tbl.cell(0, i)
+        cell.fill.solid(); cell.fill.fore_color.rgb = HNA_RED
+        cell.text = ""
+        p = cell.text_frame.paragraphs[0]
+        p.alignment = PP_ALIGN.CENTER
+        run = p.add_run(); run.text = h
+        run.font.name = "微软雅黑"; run.font.size = PPt(12); run.font.bold = True
+        run.font.color.rgb = WHITE
+    # 数据
+    for r_idx, row in enumerate(rows, 1):
+        bg = WHITE if r_idx % 2 else PRGBColor(0xF8, 0xF8, 0xF8)
         for i, val in enumerate(row):
-            c = tbl.cell(r, i)
-            c.text = str(val)
-            for p in c.text_frame.paragraphs:
-                for run in p.runs:
-                    run.font.size = PPt(10)
+            cell = tbl.cell(r_idx, i)
+            cell.fill.solid(); cell.fill.fore_color.rgb = bg
+            cell.text = ""
+            p = cell.text_frame.paragraphs[0]
+            p.alignment = PP_ALIGN.CENTER if i == 0 else PP_ALIGN.LEFT
+            run = p.add_run(); run.text = str(val)
+            run.font.name = "微软雅黑"; run.font.size = PPt(10); run.font.color.rgb = TEXT_DARK
+    _add_footer(s, page_no, total)
+
+
+def _slide_end(prs, total, page_no):
+    s = _new_slide(prs)
+    _add_rect(s, Inches(0), Inches(0), Inches(13.333), Inches(7.5), HNA_RED)
+    _add_textbox(s, Inches(0.5), Inches(2.8), Inches(12.33), Inches(1.5),
+                 "THANKS", size=72, bold=True, color=WHITE, align=PP_ALIGN.CENTER)
+    _add_textbox(s, Inches(0.5), Inches(4.2), Inches(12.33), Inches(0.6),
+                 "感谢观看 · 敬请指正", size=20, color=WHITE, align=PP_ALIGN.CENTER)
+    _add_textbox(s, Inches(0.5), Inches(5.5), Inches(12.33), Inches(0.4),
+                 "系统开发：王迪    技术支持：杨清云", size=14, color=WHITE, align=PP_ALIGN.CENTER)
+    _add_textbox(s, Inches(12.2), Inches(7.15), Inches(1), Inches(0.3),
+                 f"{page_no} / {total}", size=9, color=WHITE, align=PP_ALIGN.RIGHT)
 
 
 def build_ppt_bytes() -> bytes:
     prs = Presentation()
-    prs.slide_width = Inches(10)
-    prs.slide_height = Inches(7.5)
+    prs.slide_width = SLIDE_W
+    prs.slide_height = SLIDE_H
 
-    _add_title_slide(
-        prs,
-        "航线载量分析系统",
-        "湖南航空公司 · 王迪 出品\n技术支持：杨清云",
-    )
-    _add_bullets_slide(prs, "一、系统功能", INTRO_BULLETS)
-    _add_bullets_slide(prs, "二、操作流程", [
-        "Step 1  打开网页或本地启动",
-        "Step 2  拖入 OFP TXT（支持 500+ 份批量）",
-        "Step 3  确认解析数据预览",
-        "Step 4  点击「生成报告」",
-        "Step 5  下载 Word 文档",
+    toc_items = [
+        "项目背景与价值",
+        "核心功能特性",
+        "操作流程演示",
+        "字段抓取逻辑",
+        "文件命名规则",
+        "自定义映射",
+    ]
+    total = 2 + len(toc_items) + 1  # 封面 + 目录 + 各章 + 致谢
+
+    # 1. 封面
+    _slide_cover(prs, total)
+    # 2. 目录
+    _slide_toc(prs, total, toc_items)
+
+    # 3. 项目背景与价值
+    _slide_section_bullets(prs, total, 3, "01", "项目背景与价值", [
+        ("✈", "为什么需要这个系统",
+         ["每月需重新汇总航线载量数据，工作量大",
+          "OFP TXT 字段散布多处，人工提取易错",
+          "同一航线多机型需分别整理，重复劳动",
+          "Word 排版要求统一，手工调整费时"]),
+        ("🎯", "本系统能做什么",
+         ["一键拖入数百份 OFP TXT 文件",
+          "自动按航线 + 机型分组汇总",
+          "自动生成符合公司要求的 Word 报告",
+          "从「半天工作」→「一分钟完成」"]),
     ])
-    _add_table_slide(
-        prs,
-        "三、字段抓取与计算逻辑",
-        ["输出字段", "数据来源 / 算法", "示例"],
-        [list(r) for r in LOGIC_ROWS[:13]],
-    )
-    _add_bullets_slide(prs, "四、文件命名规则", [
-        "示例：306C ZSWX-ZWTL S07.txt",
-        "第一段：机号（如 306C）",
-        "第二段：起飞-目的（ICAO 四字码）",
-        "第三段：线路标识(S/N/W) + 月份(两位数字)",
+
+    # 4. 核心功能
+    _slide_section_bullets(prs, total, 4, "02", "核心功能特性", [
+        ("📥", "批量解析",
+         ["支持 500+ 份 TXT 同时解析",
+          "解析速度秒级响应",
+          "失败文件单独标记"]),
+        ("🧭", "智能分组",
+         ["按起飞-目的-线路自动归类",
+          "南/北/W 线自动识别",
+          "同航线汇总到一个标题"]),
+        ("🛩", "机型分层",
+         ["A319-115 → A320-214W → A320-251",
+          "顺序固定，输出统一",
+          "未识别机型可补充映射"]),
+        ("📄", "Word 一键导出",
+         ["纵向 A4，宋体",
+          "标题 + 副标题 + 完整带边框表格",
+          "下载即用，无需二次排版"]),
+        ("🌐", "网页 + 本地共用",
+         ["浏览器打开网页即用",
+          "本地双击「启动.command」",
+          "代码完全一致"]),
+        ("🛠", "可扩展",
+         ["机场词典 JSON 可编辑",
+          "机型词典 JSON 可编辑",
+          "无需重新打包"]),
     ])
-    _add_bullets_slide(prs, "五、自定义映射", [
-        "config/airports.json — ICAO 四字码到中文名",
-        "config/aircraft.json — 机号代号到机型名",
-        "未录入的代号会原样显示，编辑 JSON 即可补充",
+
+    # 5. 操作流程
+    _slide_steps(prs, total, 5, "03", "操作流程演示", [
+        ("①", "打开系统", "网页：访问\nwangdi-payload\n.streamlit.app\n本地：双击「启动」"),
+        ("②", "上传 TXT", "拖入或选择\nOFP 文件\n支持批量"),
+        ("③", "核对数据", "查看预览表\n确认字段无误"),
+        ("④", "生成报告", "点击「生成报告」\n自动汇总分组"),
+        ("⑤", "下载使用", "下载 Word 文档\n打印或归档"),
     ])
-    _add_bullets_slide(prs, "联系方式", [
-        "作者：王迪",
-        "技术支持：杨清云",
-        "网页版：https://wangdi-payload.streamlit.app",
+
+    # 6. 字段抓取逻辑（表格）
+    _slide_table(prs, total, 6, "04", "字段抓取与计算逻辑",
+                 ["输出字段", "数据来源 / 算法", "示例"],
+                 [list(r) for r in LOGIC_ROWS])
+
+    # 7. 文件命名规则
+    _slide_section_bullets(prs, total, 7, "05", "文件命名规则", [
+        ("📝", "命名格式",
+         ["示例：306C ZSWX-ZWTL S07.txt",
+          "三段空格分隔",
+          "中英文均可"]),
+        ("①", "第一段：机号",
+         ["如 306C / 302Y / 321U",
+          "对应 aircraft.json 映射",
+          "决定副标题机型"]),
+        ("②", "第二段：航线",
+         ["格式 ICAO-ICAO",
+          "如 ZSWX-ZWTL",
+          "对应 airports.json 映射"]),
+        ("③", "第三段：线路+月份",
+         ["S=南线 / N=北线 / W=W线",
+          "末两位为月份（07 = 7 月）",
+          "可省略，省略时无线路标识"]),
     ])
+
+    # 8. 自定义映射
+    _slide_section_bullets(prs, total, 8, "06", "自定义映射", [
+        ("🛬", "机场词典",
+         ["文件：config/airports.json",
+          "格式：ICAO 四字码 → 中文名",
+          '示例："ZWTL": "吐鲁番"',
+          "未录入会原样显示，编辑即可"]),
+        ("✈", "机型词典",
+         ["文件：config/aircraft.json",
+          "格式：机号代号 → 机型名",
+          '示例："B306C": "A319-115"',
+          "影响 Word 副标题与排序"]),
+    ])
+
+    # 9. 致谢
+    _slide_end(prs, total, total)
 
     buf = BytesIO()
     prs.save(buf)
