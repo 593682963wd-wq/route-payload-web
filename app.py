@@ -1,6 +1,7 @@
 """航线载量分析系统 — 网页版 / 本地版共用同一份代码。"""
 from __future__ import annotations
 
+import re
 import tempfile
 from io import BytesIO
 from pathlib import Path
@@ -12,9 +13,71 @@ from core.parser import FlightPlan, parse_txt
 from core.word_writer import build_doc, _load_json
 from core.docs_builder import build_manual_bytes, build_ppt_bytes
 
-APP_VERSION = "V 1.2.2"
+APP_VERSION = "V 1.3.0"
 AUTHOR = "王迪"
 TECH_SUPPORT = "杨清云"
+
+
+# ─────────────────────────────────────────
+# 航线输入解析
+# ─────────────────────────────────────────
+# 多条航线分隔符：中文顿号、中英文逗号、分号、换行
+_ROUTE_SPLIT_RE = re.compile(r"[、，,;；\n\r]+")
+# 同一条航线内部的城市分隔符：=
+_CITY_SPLIT_RE = re.compile(r"\s*=\s*")
+
+
+def _build_name_to_icao(airports: dict) -> dict[str, str]:
+    """中文机场名 → ICAO。airports.json 是 ICAO → 中文名，反转。"""
+    return {v: k for k, v in airports.items() if isinstance(v, str)}
+
+
+def parse_route_input(
+    text: str, airports: dict
+) -> tuple[list[tuple[str, str]], list[str]]:
+    """解析航线输入。
+
+    输入示例：
+        无锡 = 乌鲁木齐、无锡 = 信阳 = 乌鲁木齐、无锡 = 榆林 = 乌鲁木齐
+
+    输出：(pairs, unknown_names)
+        pairs 是按输入顺序展开的 (dep_icao, arr_icao) 双向相邻对；
+        unknown_names 是未在 airports.json 中找到的中文名列表。
+    """
+    name_to_icao = _build_name_to_icao(airports)
+    pairs: list[tuple[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    unknown: list[str] = []
+    if not text or not text.strip():
+        return pairs, unknown
+
+    for raw in _ROUTE_SPLIT_RE.split(text):
+        seg = raw.strip()
+        if not seg:
+            continue
+        cities = [c.strip() for c in _CITY_SPLIT_RE.split(seg) if c.strip()]
+        if len(cities) < 2:
+            continue
+        # 把中文名解析成 ICAO；同时也允许直接写 ICAO 四字码
+        icao_chain: list[str] = []
+        for city in cities:
+            if city in airports:  # 直接是 ICAO
+                icao_chain.append(city)
+            elif city in name_to_icao:
+                icao_chain.append(name_to_icao[city])
+            else:
+                if city not in unknown:
+                    unknown.append(city)
+                icao_chain = []
+                break
+        if not icao_chain:
+            continue
+        for a, b in zip(icao_chain, icao_chain[1:]):
+            for pair in ((a, b), (b, a)):
+                if pair not in seen:
+                    pairs.append(pair)
+                    seen.add(pair)
+    return pairs, unknown
 
 st.set_page_config(
     page_title="航线载量分析系统",
@@ -441,13 +504,44 @@ if not plans:
     st.warning("没有可用于生成报告的数据，请检查上传的文件。")
     st.stop()
 
+route_input = st.text_area(
+    "✏️ 本次测算航线（可选，决定 Word 大标题顺序）",
+    key="route_input",
+    height=90,
+    placeholder="示例：无锡 = 乌鲁木齐、无锡 = 信阳 = 乌鲁木齐、无锡 = 榆林 = 乌鲁木齐",
+    help=(
+        "用「=」连接经停城市，多条航线用「、」「，」或换行分隔。"
+        "系统会按输入顺序，把每对相邻城市自动展开为正反两条大标题；"
+        "同一对城市存在不同线路（南/北/W）时沿用既有反向配对规则。"
+        "未填写时按上传文件原顺序生成。"
+    ),
+)
+
+route_override, unknown_names = parse_route_input(route_input, airports)
+if unknown_names:
+    st.warning(
+        "以下城市未在机场词典中找到，将忽略所在航线："
+        + "、".join(unknown_names)
+        + "。可在 `config/airports.json` 补充映射。"
+    )
+if route_override:
+    preview = "、".join(
+        f"{airports.get(d, d)}-{airports.get(a, a)}" for d, a in route_override
+    )
+    st.caption(f"📐 大标题顺序预览（{len(route_override)} 条）：{preview}")
+
 col1, col2 = st.columns([1, 3])
 with col1:
     gen = st.button("📄  生成报告", type="primary", use_container_width=True)
 
 if gen:
     with st.spinner("正在生成 Word 报告..."):
-        doc = build_doc(plans, airports=airports, aircraft=aircraft)
+        doc = build_doc(
+            plans,
+            airports=airports,
+            aircraft=aircraft,
+            route_order_override=route_override or None,
+        )
         buf = BytesIO()
         doc.save(buf)
         st.session_state["docx_bytes"] = buf.getvalue()
