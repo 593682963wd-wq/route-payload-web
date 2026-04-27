@@ -1,11 +1,34 @@
 """TXT 飞行计划解析。所有字段均从前 ~80 行内抓取（保险阈值），CPT 表用于扫描最大 FL。"""
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, asdict
 from pathlib import Path
 
 SUFFIX_MAP = {"S": "南线", "N": "北线", "W": "W线"}
+
+# 各机型核定最大载客人数（公司标准，pax_count 不得超过此上限）
+MAX_PAX_BY_TYPE = {
+    "A319-115": 144,
+    "A320-214": 180,
+    "A320-214W": 186,
+    "A320-251": 186,
+    "A321-211": 220,
+}
+
+_CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
+
+
+def _load_aircraft_map() -> dict:
+    p = _CONFIG_DIR / "aircraft.json"
+    if not p.exists():
+        return {}
+    try:
+        data = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return {k: v for k, v in data.items() if not k.startswith("_")}
 
 
 @dataclass
@@ -177,6 +200,13 @@ def parse_txt(path: str | Path) -> FlightPlan:
                 max_fl = fl
 
     pax = av_pld // 85 if av_pld else 0
+
+    # 按机型核定最大载客人数限制 pax_count
+    ac_map = _load_aircraft_map()
+    type_name = ac_map.get(aircraft_type_code, "")
+    max_pax = MAX_PAX_BY_TYPE.get(type_name)
+    if max_pax is not None and pax > max_pax:
+        pax = max_pax
 
     return FlightPlan(
         source_file=p.name,
