@@ -12,7 +12,7 @@ from core.parser import FlightPlan, parse_txt
 from core.word_writer import build_doc, _load_json
 from core.docs_builder import build_manual_bytes, build_ppt_bytes
 
-APP_VERSION = "V 1.2.1"
+APP_VERSION = "V 1.2.2"
 AUTHOR = "王迪"
 TECH_SUPPORT = "杨清云"
 
