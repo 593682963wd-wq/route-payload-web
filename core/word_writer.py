@@ -39,7 +39,7 @@ COLUMNS = [
 ]
 
 # 机型在同一航线下的展示顺序
-AIRCRAFT_ORDER = ["A319-115", "A320-214W", "A320-251"]
+AIRCRAFT_ORDER = ["A319-115", "A320-214", "A320-214W", "A320-251", "A321-211"]
 
 CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 
@@ -185,6 +185,21 @@ def build_doc(
         if rkey not in route_groups:
             route_order.append(rkey)
         route_groups[rkey][fp.aircraft_type_code].append(fp)
+
+    # 往返配对排序：每条航线之后紧邻其反向航线（同线路后缀），按首次出现顺序为基准。
+    paired_order: list[tuple] = []
+    placed: set[tuple] = set()
+    for rkey in route_order:
+        if rkey in placed:
+            continue
+        paired_order.append(rkey)
+        placed.add(rkey)
+        dep, arr, suffix = rkey
+        rev = (arr, dep, suffix)
+        if rev in route_groups and rev not in placed:
+            paired_order.append(rev)
+            placed.add(rev)
+    route_order = paired_order
 
     doc = Document()
     section = doc.sections[0]
