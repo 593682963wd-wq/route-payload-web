@@ -170,8 +170,15 @@ def build_doc(
     plans: Iterable[FlightPlan],
     airports: dict | None = None,
     aircraft: dict | None = None,
+    route_order_override: list[tuple[str, str]] | None = None,
 ) -> Document:
-    """渲染。外层航线分组（含线路后缀），内层按机型顺序。"""
+    """渲染。外层航线分组（含线路后缀），内层按机型顺序。
+
+    route_order_override：可选，按 (dep_icao, arr_icao) 顺序排列的清单。
+    若提供，则大标题严格按该顺序输出；同一 (dep, arr) 下若存在多个线路后缀
+    （南/北/W/无），按 plan 首次出现顺序逐个排列（沿用既有规则）。
+    在清单之外但确有数据的 (dep, arr, suffix) 退回到原有“反向配对”逻辑追加在末尾。
+    """
     if airports is None:
         airports = _load_json("airports.json")
     if aircraft is None:
@@ -180,26 +187,52 @@ def build_doc(
     # 外层：航线
     route_groups: dict[tuple, dict[str, list[FlightPlan]]] = defaultdict(lambda: defaultdict(list))
     route_order: list[tuple] = []
+    # (dep, arr) → [suffix, ...] 按 plan 首次出现顺序
+    suffixes_by_pair: dict[tuple[str, str], list[str]] = defaultdict(list)
     for fp in plans:
         rkey = (fp.dep_icao, fp.arr_icao, fp.route_suffix)
         if rkey not in route_groups:
             route_order.append(rkey)
+            suffixes_by_pair[(fp.dep_icao, fp.arr_icao)].append(fp.route_suffix)
         route_groups[rkey][fp.aircraft_type_code].append(fp)
 
-    # 往返配对排序：每条航线之后紧邻其反向航线（同线路后缀），按首次出现顺序为基准。
-    paired_order: list[tuple] = []
-    placed: set[tuple] = set()
-    for rkey in route_order:
-        if rkey in placed:
-            continue
-        paired_order.append(rkey)
-        placed.add(rkey)
-        dep, arr, suffix = rkey
-        rev = (arr, dep, suffix)
-        if rev in route_groups and rev not in placed:
-            paired_order.append(rev)
-            placed.add(rev)
-    route_order = paired_order
+    if route_order_override:
+        # 按用户输入次序排：每个 (dep, arr) 取出该对下所有 suffix（按首次出现顺序）
+        ordered: list[tuple] = []
+        placed: set[tuple] = set()
+        for dep, arr in route_order_override:
+            for suffix in suffixes_by_pair.get((dep, arr), []):
+                rkey = (dep, arr, suffix)
+                if rkey in route_groups and rkey not in placed:
+                    ordered.append(rkey)
+                    placed.add(rkey)
+        # 兜底：override 没覆盖到、但确有数据的航线，按原“反向配对”逻辑追加
+        for rkey in route_order:
+            if rkey in placed:
+                continue
+            ordered.append(rkey)
+            placed.add(rkey)
+            dep, arr, suffix = rkey
+            rev = (arr, dep, suffix)
+            if rev in route_groups and rev not in placed:
+                ordered.append(rev)
+                placed.add(rev)
+        route_order = ordered
+    else:
+        # 往返配对排序：每条航线之后紧邻其反向航线（同线路后缀），按首次出现顺序为基准。
+        paired_order: list[tuple] = []
+        placed: set[tuple] = set()
+        for rkey in route_order:
+            if rkey in placed:
+                continue
+            paired_order.append(rkey)
+            placed.add(rkey)
+            dep, arr, suffix = rkey
+            rev = (arr, dep, suffix)
+            if rev in route_groups and rev not in placed:
+                paired_order.append(rev)
+                placed.add(rev)
+        route_order = paired_order
 
     doc = Document()
     section = doc.sections[0]
