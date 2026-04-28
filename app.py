@@ -335,6 +335,31 @@ uploaded = st.file_uploader(
 airports = _load_json("airports.json")
 aircraft = _load_json("aircraft.json")
 
+route_input = st.text_area(
+    "✏️ 本次测算航线（可选，决定 Word 大标题顺序）",
+    key="route_input",
+    height=90,
+    placeholder="示例：无锡 = 乌鲁木齐、无锡 = 信阳 = 乌鲁木齐、无锡 = 榆林 = 乌鲁木齐",
+    help=(
+        "用「=」连接经停城市，多条航线用「、」「，」或换行分隔。"
+        "系统会按输入顺序，把每对相邻城市自动展开为正反两条大标题；"
+        "同一对城市存在不同线路（南/北/W）时沿用既有反向配对规则。"
+        "未填写时按上传文件原顺序生成。"
+    ),
+)
+route_override, unknown_names = parse_route_input(route_input, airports)
+if unknown_names:
+    st.warning(
+        "以下城市未在机场词典中找到，将忽略所在航线："
+        + "、".join(unknown_names)
+        + "。可在 `config/airports.json` 补充映射。"
+    )
+if route_override:
+    preview = "、".join(
+        f"{airports.get(d, d)}-{airports.get(a, a)}" for d, a in route_override
+    )
+    st.caption(f"📐 大标题顺序预览（{len(route_override)} 条）：{preview}")
+
 # ─────────────────────────────────────────
 # 如果还没上传 → 显示快速提示并停止
 # ─────────────────────────────────────────
@@ -503,32 +528,6 @@ st.markdown(
 if not plans:
     st.warning("没有可用于生成报告的数据，请检查上传的文件。")
     st.stop()
-
-route_input = st.text_area(
-    "✏️ 本次测算航线（可选，决定 Word 大标题顺序）",
-    key="route_input",
-    height=90,
-    placeholder="示例：无锡 = 乌鲁木齐、无锡 = 信阳 = 乌鲁木齐、无锡 = 榆林 = 乌鲁木齐",
-    help=(
-        "用「=」连接经停城市，多条航线用「、」「，」或换行分隔。"
-        "系统会按输入顺序，把每对相邻城市自动展开为正反两条大标题；"
-        "同一对城市存在不同线路（南/北/W）时沿用既有反向配对规则。"
-        "未填写时按上传文件原顺序生成。"
-    ),
-)
-
-route_override, unknown_names = parse_route_input(route_input, airports)
-if unknown_names:
-    st.warning(
-        "以下城市未在机场词典中找到，将忽略所在航线："
-        + "、".join(unknown_names)
-        + "。可在 `config/airports.json` 补充映射。"
-    )
-if route_override:
-    preview = "、".join(
-        f"{airports.get(d, d)}-{airports.get(a, a)}" for d, a in route_override
-    )
-    st.caption(f"📐 大标题顺序预览（{len(route_override)} 条）：{preview}")
 
 col1, col2 = st.columns([1, 3])
 with col1:
