@@ -13,7 +13,7 @@ from core.parser import FlightPlan, parse_txt
 from core.word_writer import build_doc, _load_json
 from core.docs_builder import build_manual_bytes, build_ppt_bytes
 
-APP_VERSION = "V 1.3.0"
+APP_VERSION = "V 1.3.1"
 AUTHOR = "王迪"
 TECH_SUPPORT = "杨清云"
 
@@ -27,9 +27,59 @@ _ROUTE_SPLIT_RE = re.compile(r"[、，,;；\n\r]+")
 _CITY_SPLIT_RE = re.compile(r"\s*=\s*")
 
 
+# 历史口径：歧义城市的兜底（裸城市名沿用历史习惯）
+_PREFERRED_BARE_CITY = {
+    "重庆": "ZUCK",   # 江北，历史默认
+}
+
+
 def _build_name_to_icao(airports: dict) -> dict[str, str]:
-    """中文机场名 → ICAO。airports.json 是 ICAO → 中文名，反转。"""
-    return {v: k for k, v in airports.items() if isinstance(v, str)}
+    """中文机场名 → ICAO。
+
+    airports.json 现在采用『城市/机场名』格式（如 ZBAA→北京/首都），
+    本函数派生多种用户输入形式：
+      1. 完整名 "城市/机场名"
+      2. 紧凑名 "城市机场名"（如 北京首都、上海浦东）
+      3. 裸城市名 "城市"（仅当全表唯一，或在 _PREFERRED_BARE_CITY 中）
+      4. 裸机场名 "机场名"（仅当全表唯一）
+    歧义键不会被静默覆盖，避免错配。
+    """
+    from collections import defaultdict
+    raw = {k: v for k, v in airports.items() if isinstance(k, str) and not k.startswith("_") and isinstance(v, str)}
+
+    city_groups: dict[str, list[str]] = defaultdict(list)   # city → [icao]
+    apt_groups: dict[str, list[str]] = defaultdict(list)    # 机场名 → [icao]
+    full_map: dict[str, str] = {}     # "城市/机场名"
+    compact_map: dict[str, str] = {}  # "城市机场名"
+
+    for icao, name in raw.items():
+        full_map.setdefault(name, icao)
+        if "/" in name:
+            city, apt = name.split("/", 1)
+            city, apt = city.strip(), apt.strip()
+            compact_map.setdefault(city + apt, icao)
+            city_groups[city].append(icao)
+            if apt:
+                apt_groups[apt].append(icao)
+        else:
+            city_groups[name].append(icao)
+
+    result: dict[str, str] = {}
+    result.update(full_map)
+    # 紧凑名优先级低于完整名，但高于裸名
+    for k, v in compact_map.items():
+        result.setdefault(k, v)
+    # 裸城市名：唯一 or 在历史白名单
+    for city, icaos in city_groups.items():
+        if len(icaos) == 1:
+            result.setdefault(city, icaos[0])
+        elif city in _PREFERRED_BARE_CITY and _PREFERRED_BARE_CITY[city] in icaos:
+            result[city] = _PREFERRED_BARE_CITY[city]
+    # 裸机场名：唯一才加
+    for apt, icaos in apt_groups.items():
+        if len(icaos) == 1:
+            result.setdefault(apt, icaos[0])
+    return result
 
 
 def parse_route_input(
